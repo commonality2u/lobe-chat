@@ -20,7 +20,7 @@ const logger = createLogger('utils:next-electron-rsc');
 // 定义自定义处理器类型
 export type CustomRequestHandler = (request: Request) => Promise<Response | null | undefined>;
 
-async function createRequest({
+export const createRequest = async ({
   socket,
   request,
   session,
@@ -28,7 +28,7 @@ async function createRequest({
   request: Request;
   session: Session;
   socket: Socket;
-}): Promise<IncomingMessage> {
+}): Promise<IncomingMessage> => {
   const req = new IncomingMessage(socket);
 
   const url = new URL(request.url);
@@ -75,9 +75,9 @@ async function createRequest({
   req.complete = true;
 
   return req;
-}
+};
 
-class ReadableServerResponse extends ServerResponse {
+export class ReadableServerResponse extends ServerResponse {
   private responsePromise: Promise<Response>;
 
   constructor(req: IncomingMessage) {
