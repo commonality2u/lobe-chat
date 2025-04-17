@@ -1,8 +1,10 @@
+import { LocalReadFilesParams, LocalSearchFilesParams } from '@lobechat/electron-client-ipc';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
 
 import FileSearchService from '@/services/fileSearchSrv';
+import { FileResult, SearchOptions } from '@/types/fileSearch';
 
 import { ControllerModule, ipcClientEvent } from './index';
 
@@ -23,13 +25,18 @@ export default class FileSearchCtr extends ControllerModule {
     return this.app.getService(FileSearchService);
   }
 
-  @ipcClientEvent('searchFiles')
-  async searchFiles(query: string) {
-    return this.searchService.search(query);
+  /**
+   * Handle IPC event for local file search
+   */
+  @ipcClientEvent('searchLocalFiles')
+  async handleLocalFilesSearch(params: LocalSearchFilesParams): Promise<FileResult[]> {
+    const options: Omit<SearchOptions, 'query'> = {};
+
+    return this.searchService.search(params.query, options);
   }
 
-  @ipcClientEvent('readFiles')
-  async readFiles(paths: string[]): Promise<ReadFileResult[]> {
+  @ipcClientEvent('readLocalFiles')
+  async readFiles({ paths }: LocalReadFilesParams): Promise<ReadFileResult[]> {
     const results: ReadFileResult[] = [];
 
     for (const filePath of paths) {

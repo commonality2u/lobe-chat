@@ -10,7 +10,7 @@ interface UploadFileParams {
   type: string;
 }
 
-export default class FileCtr extends ControllerModule {
+export default class UploadFileCtr extends ControllerModule {
   private get fileService() {
     return this.app.getService(FileService);
   }
