@@ -11,6 +11,7 @@ import { ChatStore } from '@/store/chat/store';
 
 export interface LocalFileAction {
   listLocalFiles: (id: string, params: LocalFileListParams) => Promise<boolean>;
+  reSearchLocalFiles: (id: string, params: LocalSearchFilesParams) => Promise<boolean>;
   readLocalFile: (
     id: string,
     params: LocalReadFileParams,
@@ -46,6 +47,14 @@ export const localFileSlice: StateCreator<
     get().toggleLocalFileLoading(id, false);
 
     return true;
+  },
+
+  reSearchLocalFiles: async (id, params) => {
+    get().toggleLocalFileLoading(id, true);
+
+    await get().updatePluginArguments(id, params);
+
+    return get().searchLocalFiles(id, params);
   },
 
   readLocalFile: async (id, params) => {
@@ -106,7 +115,6 @@ export const localFileSlice: StateCreator<
 
     return true;
   },
-
   toggleLocalFileLoading: (id, loading) => {
     // Assuming a loading state structure similar to searchLoading
     set(

@@ -1,4 +1,5 @@
 import {
+  LocalReadFileParams,
   LocalReadFilesParams,
   LocalSearchFilesParams,
   OpenLocalFileParams,
@@ -77,56 +78,64 @@ export default class FileSearchCtr extends ControllerModule {
     const results: ReadFileResult[] = [];
 
     for (const filePath of paths) {
-      try {
-        // 获取文件状态信息
-        const stats = await statPromise(filePath);
+      // 初始化结果对象
+      const result: ReadFileResult = await this.readFile({ path: filePath });
 
-        // 获取文件名
-        const filename = path.basename(filePath);
-
-        // 获取文件扩展名
-        const fileType = path.extname(filePath).toLowerCase().replace('.', '');
-
-        // 初始化结果对象
-        const result: ReadFileResult = {
-          content: '',
-          createdTime: stats.birthtime,
-          fileType,
-          filename,
-          modifiedTime: stats.mtime,
-        };
-
-        // 判断文件是否可以以纯文本方式读取
-        if (this.isTextReadableFile(fileType) && !stats.isDirectory()) {
-          try {
-            // 尝试读取文件内容
-            result.content = await readFilePromise(filePath, 'utf8');
-          } catch (error) {
-            // 读取失败，设置错误信息
-            result.content = `Failed to read file content: ${(error as Error).message}`;
-          }
-        } else if (stats.isDirectory()) {
-          // 目录不能以文本方式读取
-          result.content = 'This is a directory and cannot be read as plain text.';
-        } else {
-          // 不可读取的文件类型
-          result.content = 'This file cannot be read as plain text.';
-        }
-
-        results.push(result);
-      } catch (error) {
-        // 处理文件不存在或无法访问的情况
-        results.push({
-          content: `Error accessing file: ${(error as Error).message}`,
-          createdTime: new Date(),
-          fileType: 'unknown',
-          filename: path.basename(filePath),
-          modifiedTime: new Date(),
-        });
-      }
+      results.push(result);
     }
 
     return results;
+  }
+
+  @ipcClientEvent('readLocalFile')
+  async readFile({ path: filePath }: LocalReadFileParams): Promise<ReadFileResult> {
+    try {
+      // 获取文件状态信息
+      const stats = await statPromise(filePath);
+
+      // 获取文件名
+      const filename = path.basename(filePath);
+
+      // 获取文件扩展名
+      const fileType = path.extname(filePath).toLowerCase().replace('.', '');
+
+      // 初始化结果对象
+      const result: ReadFileResult = {
+        content: '',
+        createdTime: stats.birthtime,
+        fileType,
+        filename,
+        modifiedTime: stats.mtime,
+      };
+
+      // 判断文件是否可以以纯文本方式读取
+      if (this.isTextReadableFile(fileType) && !stats.isDirectory()) {
+        try {
+          // 尝试读取文件内容
+          result.content = await readFilePromise(filePath, 'utf8');
+        } catch (error) {
+          // 读取失败，设置错误信息
+          result.content = `Failed to read file content: ${(error as Error).message}`;
+        }
+      } else if (stats.isDirectory()) {
+        // 目录不能以文本方式读取
+        result.content = 'This is a directory and cannot be read as plain text.';
+      } else {
+        // 不可读取的文件类型
+        result.content = 'This file cannot be read as plain text.';
+      }
+
+      return result;
+    } catch (error) {
+      // 处理文件不存在或无法访问的情况
+      return {
+        content: `Error accessing file: ${(error as Error).message}`,
+        createdTime: new Date(),
+        fileType: 'unknown',
+        filename: path.basename(filePath),
+        modifiedTime: new Date(),
+      };
+    }
   }
 
   /**

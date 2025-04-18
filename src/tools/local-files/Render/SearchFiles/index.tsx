@@ -1,20 +1,29 @@
+import { LocalSearchFilesParams } from '@lobechat/electron-client-ipc';
 import { memo } from 'react';
-import { Flexbox } from 'react-layout-kit';
 
-import FileItem from '@/tools/local-files/components/FileItem';
-import { FileResult } from '@/tools/local-files/type';
+import { LocalFileSearchState } from '@/tools/local-files/type';
+import { ChatMessagePluginError } from '@/types/message';
+
+import SearchResult from './Result';
+import SearchQuery from './SearchQuery';
 
 interface SearchFilesProps {
-  searchResults?: FileResult[];
+  args: LocalSearchFilesParams;
+  messageId: string;
+  pluginError: ChatMessagePluginError;
+  pluginState?: LocalFileSearchState;
 }
 
-const SearchFiles = memo<SearchFilesProps>(({ searchResults = [] }) => {
+const SearchFiles = memo<SearchFilesProps>(({ messageId, pluginError, args, pluginState }) => {
   return (
-    <Flexbox gap={2} style={{ maxHeight: 260, overflow: 'scroll' }}>
-      {searchResults.map((item) => (
-        <FileItem key={item.path} {...item} />
-      ))}
-    </Flexbox>
+    <>
+      <SearchQuery args={args} messageId={messageId} pluginState={pluginState} />
+      <SearchResult
+        messageId={messageId}
+        pluginError={pluginError}
+        searchResults={pluginState?.searchResults}
+      />
+    </>
   );
 });
 

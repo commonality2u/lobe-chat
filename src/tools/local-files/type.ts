@@ -12,4 +12,8 @@ export interface FileResult {
   path: string;
   size: number;
   type: string;
-} 
+}
+
+export interface LocalFileSearchState {
+  searchResults: FileResult[];
+}
