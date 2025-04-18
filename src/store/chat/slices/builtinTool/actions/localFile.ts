@@ -10,7 +10,7 @@ import { localFileService } from '@/services/electron/localFileService';
 import { ChatStore } from '@/store/chat/store';
 
 export interface LocalFileAction {
-  listLocalFiles: (id: string, params: LocalFileListParams) => Promise<void>;
+  listLocalFiles: (id: string, params: LocalFileListParams) => Promise<boolean>;
   readLocalFile: (
     id: string,
     params: LocalReadFileParams,
@@ -19,7 +19,7 @@ export interface LocalFileAction {
     id: string,
     params: LocalReadFilesParams,
   ) => Promise<{ content: string; error?: string; success: boolean }[] | undefined>;
-  searchLocalFiles: (id: string, params: LocalSearchFilesParams) => Promise<void>;
+  searchLocalFiles: (id: string, params: LocalSearchFilesParams) => Promise<boolean>;
   toggleLocalFileLoading: (id: string, loading: boolean) => void;
 }
 
@@ -40,10 +40,12 @@ export const localFileSlice: StateCreator<
       await get().internal_updateMessagePluginError(id, {
         body: error,
         message: (error as Error).message,
-        type: 'LocalFileError',
+        type: 'PluginServerError',
       });
     }
     get().toggleLocalFileLoading(id, false);
+
+    return true;
   },
 
   readLocalFile: async (id, params) => {
@@ -59,7 +61,7 @@ export const localFileSlice: StateCreator<
       await get().internal_updateMessagePluginError(id, {
         body: error,
         message: (error as Error).message,
-        type: 'LocalFileError',
+        type: 'PluginServerError',
       });
     }
     get().toggleLocalFileLoading(id, false);
@@ -79,7 +81,7 @@ export const localFileSlice: StateCreator<
       await get().internal_updateMessagePluginError(id, {
         body: error,
         message: (error as Error).message,
-        type: 'LocalFileError',
+        type: 'PluginServerError',
       });
     }
     get().toggleLocalFileLoading(id, false);
@@ -97,7 +99,7 @@ export const localFileSlice: StateCreator<
       await get().internal_updateMessagePluginError(id, {
         body: error,
         message: (error as Error).message,
-        type: 'LocalFileError',
+        type: 'PluginServerError',
       });
     }
     get().toggleLocalFileLoading(id, false);

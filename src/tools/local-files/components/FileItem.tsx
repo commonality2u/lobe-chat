@@ -1,8 +1,11 @@
+import { ActionIcon } from '@lobehub/ui';
 import { createStyles } from 'antd-style';
-import React, { memo } from 'react';
+import { FolderOpen } from 'lucide-react';
+import React, { memo, useState } from 'react';
 import { Flexbox } from 'react-layout-kit';
 
 import FileIcon from '@/components/FileIcon';
+import { localFileService } from '@/services/electron/localFileService';
 import { formatSize } from '@/utils/format';
 
 import { FileResult } from '../type';
@@ -13,8 +16,8 @@ const useStyles = createStyles(({ css, token }) => ({
     color: ${token.colorTextSecondary};
 
     :hover {
-      background: ${token.colorFillTertiary};
       color: ${token.colorText};
+      background: ${token.colorFillTertiary};
     }
   `,
   path: css`
@@ -27,17 +30,18 @@ const useStyles = createStyles(({ css, token }) => ({
     white-space: nowrap;
   `,
   size: css`
-    color: ${token.colorTextTertiary};
     min-width: 50px;
-    font-size: 10px;
-    text-align: end;
+
     font-family: ${token.fontFamilyCode};
+    font-size: 10px;
+    color: ${token.colorTextTertiary};
+    text-align: end;
   `,
   title: css`
-    display: block;
     overflow: hidden;
-    color: inherit;
+    display: block;
 
+    color: inherit;
     text-overflow: ellipsis;
     white-space: nowrap;
   `,
@@ -45,6 +49,7 @@ const useStyles = createStyles(({ css, token }) => ({
 
 const FileItem = memo<FileResult>(({ isDirectory, name, path, size, type }) => {
   const { styles } = useStyles();
+  const [isHovering, setIsHovering] = useState(false);
 
   return (
     <Flexbox
@@ -52,8 +57,17 @@ const FileItem = memo<FileResult>(({ isDirectory, name, path, size, type }) => {
       className={styles.container}
       gap={12}
       horizontal
+      onClick={() => {
+        if (isDirectory) {
+          localFileService.openLocalFolder({ isDirectory, path });
+        } else {
+          localFileService.openLocalFile({ path });
+        }
+      }}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
       padding={'2px 8px'}
-      style={{ fontSize: 12, width: '100%' }}
+      style={{ cursor: 'pointer', fontSize: 12, width: '100%' }}
     >
       {isDirectory ? (
         <FileIcon fileName={name} fileType={'txt'} size={16} variant={'folder'} />
@@ -64,7 +78,22 @@ const FileItem = memo<FileResult>(({ isDirectory, name, path, size, type }) => {
         <div className={styles.title}>{name}</div>
         <div className={styles.path}>{path}</div>
       </Flexbox>
-      <span className={styles.size}>{formatSize(size)}</span>
+      {isHovering ? (
+        <Flexbox direction={'horizontal-reverse'} gap={8} style={{ minWidth: 50 }}>
+          <ActionIcon
+            icon={FolderOpen}
+            onClick={(e) => {
+              e.stopPropagation();
+              localFileService.openLocalFolder({ isDirectory, path });
+            }}
+            size={'small'}
+            style={{ height: 16, width: 16 }}
+            title={'打开文件夹'}
+          />
+        </Flexbox>
+      ) : (
+        <span className={styles.size}>{formatSize(size)}</span>
+      )}
     </Flexbox>
   );
 });

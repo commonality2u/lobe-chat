@@ -1,4 +1,10 @@
-import { LocalReadFilesParams, LocalSearchFilesParams } from '@lobechat/electron-client-ipc';
+import {
+  LocalReadFilesParams,
+  LocalSearchFilesParams,
+  OpenLocalFileParams,
+  OpenLocalFolderParams,
+} from '@lobechat/electron-client-ipc';
+import { shell } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { promisify } from 'node:util';
@@ -35,6 +41,35 @@ export default class FileSearchCtr extends ControllerModule {
     };
 
     return this.searchService.search(params.keywords, options);
+  }
+
+  @ipcClientEvent('openLocalFile')
+  async handleOpenLocalFile({ path: filePath }: OpenLocalFileParams): Promise<{
+    error?: string;
+    success: boolean;
+  }> {
+    try {
+      await shell.openPath(filePath);
+      return { success: true };
+    } catch (error) {
+      console.error(`Failed to open file ${filePath}:`, error);
+      return { error: (error as Error).message, success: false };
+    }
+  }
+
+  @ipcClientEvent('openLocalFolder')
+  async handleOpenLocalFolder({ path: targetPath, isDirectory }: OpenLocalFolderParams): Promise<{
+    error?: string;
+    success: boolean;
+  }> {
+    try {
+      const folderPath = isDirectory ? targetPath : path.dirname(targetPath);
+      await shell.openPath(folderPath);
+      return { success: true };
+    } catch (error) {
+      console.error(`Failed to open folder for path ${targetPath}:`, error);
+      return { error: (error as Error).message, success: false };
+    }
   }
 
   @ipcClientEvent('readLocalFiles')

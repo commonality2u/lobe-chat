@@ -62,10 +62,6 @@ export const LocalFilesManifest: BuiltinToolManifest = {
             format: 'date-time',
             type: 'string',
           },
-          detailed: {
-            description: 'Whether to return detailed results (e.g., including metadata)',
-            type: 'boolean',
-          },
           exclude: {
             description: 'Array of file or directory paths to exclude',
             items: {

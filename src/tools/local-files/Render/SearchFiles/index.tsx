@@ -10,7 +10,7 @@ interface SearchFilesProps {
 
 const SearchFiles = memo<SearchFilesProps>(({ searchResults = [] }) => {
   return (
-    <Flexbox gap={2} style={{ maxHeight: 300, overflow: 'scroll' }}>
+    <Flexbox gap={2} style={{ maxHeight: 260, overflow: 'scroll' }}>
       {searchResults.map((item) => (
         <FileItem key={item.path} {...item} />
       ))}

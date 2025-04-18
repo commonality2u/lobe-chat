@@ -25,3 +25,12 @@ export interface LocalSearchFilesParams {
   directory?: string;
   keywords: string; // Optional directory to limit search
 }
+
+export interface OpenLocalFileParams {
+  path: string;
+}
+
+export interface OpenLocalFolderParams {
+  isDirectory?: boolean;
+  path: string;
+}
