@@ -23,5 +23,5 @@ export interface LocalReadFilesParams {
 
 export interface LocalSearchFilesParams {
   directory?: string;
-  query: string; // Optional directory to limit search
+  keywords: string; // Optional directory to limit search
 }

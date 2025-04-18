@@ -13,8 +13,8 @@ export default class FileSearchService extends ServiceModule {
   /**
    * Perform file search
    */
-  async search(query: string, options: Omit<SearchOptions, 'query'> = {}): Promise<FileResult[]> {
-    return this.impl.search({ ...options, query });
+  async search(query: string, options: Omit<SearchOptions, 'keywords'> = {}): Promise<FileResult[]> {
+    return this.impl.search({ ...options, keywords: query });
   }
 
   /**

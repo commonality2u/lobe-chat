@@ -32,6 +32,8 @@ export interface SearchOptions {
   // File type options
   fileTypes?: string[];
 
+  // Basic options
+  keywords: string;
   limit?: number;
   // Created before specific date
   // Advanced options
@@ -39,13 +41,11 @@ export interface SearchOptions {
   // File type filters, like "public.image", "public.movie"
   // Time options
   modifiedAfter?: Date;
+
   // Modified after specific date
   modifiedBefore?: Date;
-
   // Path options
-  onlyIn?: string;
-  // Basic options
-  query: string; // Whether to return detailed metadata
+  onlyIn?: string; // Whether to return detailed metadata
   sortBy?: 'name' | 'date' | 'size'; // Result sorting
   sortDirection?: 'asc' | 'desc'; // Sort direction
 }

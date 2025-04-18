@@ -1,14 +1,19 @@
 import { exec, spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import readline from 'node:readline';
 import { promisify } from 'node:util';
 
 import { FileResult, SearchOptions } from '@/types/fileSearch';
+import { createLogger } from '@/utils/logger';
 
 import { FileSearchImpl } from '../type';
 
 const execPromise = promisify(exec);
 const statPromise = promisify(fs.stat);
+
+// Create logger
+const logger = createLogger('module:FileSearch:macOS');
 
 export class MacOSSearchServiceImpl extends FileSearchImpl {
   /**
@@ -17,28 +22,99 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
    * @returns Promise of search result list
    */
   async search(options: SearchOptions): Promise<FileResult[]> {
-    try {
-      const command = this.buildSearchCommand(options);
-      console.log('Executing command:', command);
+    // Build the command first, regardless of execution method
+    const command = this.buildSearchCommand(options);
+    logger.debug(`Executing command: ${command}`);
 
-      // If live update is needed, use the callback method
+    // Use spawn for both live and non-live updates to handle large outputs
+    return new Promise((resolve, reject) => {
+      const [cmd, ...args] = command.split(' ');
+      const childProcess = spawn(cmd, args);
+
+      let results: string[] = []; // Store raw file paths
+      let stderrData = '';
+
+      // Create a readline interface to process stdout line by line
+      const rl = readline.createInterface({
+        crlfDelay: Infinity,
+        input: childProcess.stdout, // Handle different line endings
+      });
+
+      rl.on('line', (line) => {
+        const trimmedLine = line.trim();
+        if (trimmedLine) {
+          results.push(trimmedLine);
+
+          // If we have a limit and we've reached it (in non-live mode), stop processing
+          if (!options.liveUpdate && options.limit && results.length >= options.limit) {
+            logger.debug(`Reached limit (${options.limit}), closing readline and killing process.`);
+            rl.close(); // Stop reading lines
+            childProcess.kill(); // Terminate the mdfind process
+          }
+        }
+      });
+
+      childProcess.stderr.on('data', (data) => {
+        const errorMsg = data.toString();
+        stderrData += errorMsg;
+        logger.warn(`Search stderr: ${errorMsg}`);
+      });
+
+      childProcess.on('error', (error) => {
+        logger.error(`Search process error: ${error.message}`, error);
+        reject(new Error(`Search process failed to start: ${error.message}`));
+      });
+
+      childProcess.on('close', async (code) => {
+        logger.debug(`Search process exited with code ${code}`);
+
+        // Even if the process was killed due to limit, code might be null or non-zero.
+        // Process the results collected so far.
+        if (code !== 0 && stderrData && results.length === 0) {
+          // If exited with error code and we have stderr message and no results, reject.
+          // Filter specific ignorable errors if necessary
+          if (!stderrData.includes('Index is unavailable') && !stderrData.includes('kMD')) {
+            // Avoid rejecting for common Spotlight query syntax errors or index issues if some results might still be valid
+            reject(new Error(`Search process exited with code ${code}: ${stderrData}`));
+            return;
+          } else {
+            logger.warn(
+              `Search process exited with code ${code} but contained potentially ignorable errors: ${stderrData}`,
+            );
+          }
+        }
+
+        try {
+          // Process the collected file paths
+          // Ensure limit is applied again here in case killing the process didn't stop exactly at the limit
+          const limitedResults =
+            options.limit && results.length > options.limit
+              ? results.slice(0, options.limit)
+              : results;
+
+          const processedResults = await this.processSearchResultsFromPaths(
+            limitedResults,
+            options,
+          );
+          resolve(processedResults);
+        } catch (processingError) {
+          logger.error('Error processing search results:', processingError);
+          reject(new Error(`Failed to process search results: ${processingError.message}`));
+        }
+      });
+
+      // Handle live update specific logic (if needed in the future, e.g., sending initial batch)
       if (options.liveUpdate) {
-        return this.executeLiveSearch(command, options);
+        // For live update, we might want to resolve an initial batch
+        // or rely purely on events sent elsewhere.
+        // Current implementation resolves when the stream closes.
+        // We could add a timeout to resolve with initial results if needed.
+        logger.debug('Live update enabled, results will be processed on close.');
+        // Note: The previous `executeLiveSearch` logic is now integrated here.
+        // If specific live update event emission is needed, it would be added here,
+        // potentially calling a callback provided in options.
       }
-
-      // Otherwise perform a regular search
-      const { stdout, stderr } = await execPromise(command);
-
-      if (stderr) {
-        console.warn('Search warning:', stderr);
-      }
-
-      // Parse and process results
-      return this.processSearchResults(stdout, options);
-    } catch (error) {
-      console.error('Search error:', error);
-      throw new Error(`Search failed: ${error.message}`);
-    }
+    });
   }
 
   /**
@@ -93,13 +169,13 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
     let queryExpression = '';
 
     // Basic query
-    if (options.query) {
+    if (options.keywords) {
       // If the query string doesn't use Spotlight query syntax (doesn't contain kMDItem properties),
       // treat it as plain text search
-      if (!options.query.includes('kMDItem')) {
-        queryExpression = `"${options.query.replaceAll('"', '\\"')}"`;
+      if (!options.keywords.includes('kMDItem')) {
+        queryExpression = `"${options.keywords.replaceAll('"', '\\"')}"`;
       } else {
-        queryExpression = options.query;
+        queryExpression = options.keywords;
       }
     }
 
@@ -184,73 +260,23 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
    * @param command mdfind command
    * @param options Search options
    * @returns Promise of initial search results
+   * @deprecated This logic is now integrated into the main search method using spawn.
    */
-  private executeLiveSearch(command: string, options: SearchOptions): Promise<FileResult[]> {
-    return new Promise((resolve, reject) => {
-      // Split command and arguments
-      const [cmd, ...args] = command.split(' ');
-
-      // Use spawn instead of exec to get stream output
-      const childProcess = spawn(cmd, args);
-
-      let stdoutData = '';
-      let initialResultsProcessed = false;
-
-      childProcess.stdout.on('data', async (data) => {
-        const output = data.toString();
-        stdoutData += output;
-
-        // Process and parse for the first batch of results
-        if (!initialResultsProcessed && output.includes('\n')) {
-          const results = await this.processSearchResults(stdoutData, options);
-          initialResultsProcessed = true;
-          resolve(results);
-
-          // Later results are sent via events, but this needs appropriate event mechanism in Electron
-          // Here simply display updates in the console
-          console.log('Search results updated, new total:', results.length);
-        }
-      });
-
-      childProcess.stderr.on('data', (data) => {
-        console.warn('Live search warning:', data.toString());
-      });
-
-      childProcess.on('error', (error) => {
-        reject(new Error(`Live search failed: ${error.message}`));
-      });
-
-      childProcess.on('close', (code) => {
-        if (code !== 0 && !initialResultsProcessed) {
-          reject(new Error(`Live search process exited with code ${code}`));
-        }
-      });
-
-      // Timeout protection, ensure results are always returned
-      setTimeout(() => {
-        if (!initialResultsProcessed) {
-          this.processSearchResults(stdoutData, options).then(resolve).catch(reject);
-          initialResultsProcessed = true;
-        }
-      }, 5000);
-    });
-  }
+  // private executeLiveSearch(command: string, options: SearchOptions): Promise<FileResult[]> { ... }
+  // Remove or comment out the old executeLiveSearch method
 
   /**
-   * Process search results
-   * @param stdout Command output
+   * Process search results from a list of file paths
+   * @param filePaths Array of file path strings
    * @param options Search options
    * @returns Formatted file result list
    */
-  private async processSearchResults(
-    stdout: string,
+  private async processSearchResultsFromPaths(
+    filePaths: string[],
     options: SearchOptions,
   ): Promise<FileResult[]> {
-    // Split lines and filter empty lines
-    const lines = stdout.split('\n').filter((line) => line.trim().length > 0);
-
     // Create a result object for each file path
-    const resultPromises = lines.map(async (filePath) => {
+    const resultPromises = filePaths.map(async (filePath) => {
       try {
         // Get file information
         const stats = await statPromise(filePath);
@@ -278,7 +304,7 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
 
         return result;
       } catch (error) {
-        console.warn(`Error processing file ${filePath}:`, error);
+        logger.warn(`Error processing file stats for ${filePath}: ${error.message}`, error);
         // Return partial information, even if unable to get complete file stats
         return {
           contentType: 'unknown',
@@ -309,6 +335,16 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
 
     return results;
   }
+
+  /**
+   * Process search results
+   * @param stdout Command output (now unused directly, processing happens line by line)
+   * @param options Search options
+   * @returns Formatted file result list
+   * @deprecated Use processSearchResultsFromPaths instead.
+   */
+  // private async processSearchResults(stdout: string, options: SearchOptions): Promise<FileResult[]> { ... }
+  // Remove or comment out the old processSearchResults method
 
   /**
    * Get detailed metadata for a file
@@ -361,7 +397,7 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
 
       return metadata;
     } catch (error) {
-      console.warn(`Error getting metadata for ${filePath}:`, error);
+      logger.warn(`Error getting metadata for ${filePath}: ${error.message}`, error);
       return {};
     }
   }
@@ -516,7 +552,7 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
       await execPromise('mdfind -name test -onlyin ~ -count');
       return true;
     } catch (error) {
-      console.error('Spotlight is not available:', error);
+      logger.error(`Spotlight is not available: ${error.message}`, error);
       return false;
     }
   }
@@ -534,7 +570,7 @@ export class MacOSSearchServiceImpl extends FileSearchImpl {
       await execPromise(command);
       return true;
     } catch (error) {
-      console.error('Failed to update Spotlight index:', error);
+      logger.error(`Failed to update Spotlight index: ${error.message}`, error);
       return false;
     }
   }

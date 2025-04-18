@@ -30,9 +30,11 @@ export default class FileSearchCtr extends ControllerModule {
    */
   @ipcClientEvent('searchLocalFiles')
   async handleLocalFilesSearch(params: LocalSearchFilesParams): Promise<FileResult[]> {
-    const options: Omit<SearchOptions, 'query'> = {};
+    const options: Omit<SearchOptions, 'keywords'> = {
+      limit: 30,
+    };
 
-    return this.searchService.search(params.query, options);
+    return this.searchService.search(params.keywords, options);
   }
 
   @ipcClientEvent('readLocalFiles')
