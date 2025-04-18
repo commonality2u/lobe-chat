@@ -1,5 +1,7 @@
 import {
+  ListLocalFileParams,
   LocalReadFileParams,
+  LocalReadFileResult,
   LocalReadFilesParams,
   LocalSearchFilesParams,
   OpenLocalFileParams,
@@ -17,15 +19,7 @@ import { ControllerModule, ipcClientEvent } from './index';
 
 const readFilePromise = promisify(fs.readFile);
 const statPromise = promisify(fs.stat);
-
-// 定义一个接口来表示读取文件的返回结果
-interface ReadFileResult {
-  content: string;
-  createdTime: Date;
-  fileType: string;
-  filename: string;
-  modifiedTime: Date;
-}
+const readdirPromise = promisify(fs.readdir);
 
 export default class FileSearchCtr extends ControllerModule {
   private get searchService() {
@@ -74,12 +68,12 @@ export default class FileSearchCtr extends ControllerModule {
   }
 
   @ipcClientEvent('readLocalFiles')
-  async readFiles({ paths }: LocalReadFilesParams): Promise<ReadFileResult[]> {
-    const results: ReadFileResult[] = [];
+  async readFiles({ paths }: LocalReadFilesParams): Promise<LocalReadFileResult[]> {
+    const results: LocalReadFileResult[] = [];
 
     for (const filePath of paths) {
       // 初始化结果对象
-      const result: ReadFileResult = await this.readFile({ path: filePath });
+      const result = await this.readFile({ path: filePath });
 
       results.push(result);
     }
@@ -88,7 +82,7 @@ export default class FileSearchCtr extends ControllerModule {
   }
 
   @ipcClientEvent('readLocalFile')
-  async readFile({ path: filePath }: LocalReadFileParams): Promise<ReadFileResult> {
+  async readFile({ path: filePath }: LocalReadFileParams): Promise<LocalReadFileResult> {
     try {
       // 获取文件状态信息
       const stats = await statPromise(filePath);
@@ -100,11 +94,13 @@ export default class FileSearchCtr extends ControllerModule {
       const fileType = path.extname(filePath).toLowerCase().replace('.', '');
 
       // 初始化结果对象
-      const result: ReadFileResult = {
+      const result: LocalReadFileResult = {
+        charCount: 0,
         content: '',
         createdTime: stats.birthtime,
         fileType,
         filename,
+        lineCount: 0,
         modifiedTime: stats.mtime,
       };
 
@@ -112,7 +108,10 @@ export default class FileSearchCtr extends ControllerModule {
       if (this.isTextReadableFile(fileType) && !stats.isDirectory()) {
         try {
           // 尝试读取文件内容
-          result.content = await readFilePromise(filePath, 'utf8');
+          const content = await readFilePromise(filePath, 'utf8');
+          result.content = content;
+          result.charCount = content.length;
+          result.lineCount = content.split('\n').length;
         } catch (error) {
           // 读取失败，设置错误信息
           result.content = `Failed to read file content: ${(error as Error).message}`;
@@ -129,12 +128,59 @@ export default class FileSearchCtr extends ControllerModule {
     } catch (error) {
       // 处理文件不存在或无法访问的情况
       return {
+        charCount: 0,
         content: `Error accessing file: ${(error as Error).message}`,
         createdTime: new Date(),
         fileType: 'unknown',
         filename: path.basename(filePath),
+        lineCount: 0,
         modifiedTime: new Date(),
       };
+    }
+  }
+
+  @ipcClientEvent('listLocalFiles')
+  async listLocalFiles({ path: dirPath }: ListLocalFileParams): Promise<FileResult[]> {
+    const results: FileResult[] = [];
+    try {
+      const entries = await readdirPromise(dirPath);
+
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry);
+        try {
+          const stats = await statPromise(fullPath);
+          const isDirectory = stats.isDirectory();
+          results.push({
+            createdTime: stats.birthtime,
+            isDirectory,
+            lastAccessTime: stats.atime,
+            modifiedTime: stats.mtime,
+            name: entry,
+            path: fullPath,
+            size: stats.size,
+            type: isDirectory ? 'directory' : path.extname(entry).toLowerCase().replace('.', ''),
+          });
+        } catch (statError) {
+          // Silently ignore files we can't stat (e.g. permissions)
+          console.error(`Failed to stat ${fullPath}:`, statError);
+        }
+      }
+
+      // Sort entries: folders first, then by name
+      results.sort((a, b) => {
+        if (a.isDirectory !== b.isDirectory) {
+          return a.isDirectory ? -1 : 1; // Directories first
+        }
+        // Add null/undefined checks for robustness if needed, though names should exist
+        return (a.name || '').localeCompare(b.name || ''); // Then sort by name
+      });
+
+      return results;
+    } catch (error) {
+      console.error(`Failed to list directory ${dirPath}:`, error);
+      // Rethrow or return an empty array/error object depending on desired behavior
+      // For now, returning empty array on error listing directory itself
+      return [];
     }
   }
 

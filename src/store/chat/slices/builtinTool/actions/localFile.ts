@@ -1,5 +1,5 @@
 import {
-  LocalFileListParams,
+  ListLocalFileParams,
   LocalReadFileParams,
   LocalReadFilesParams,
   LocalSearchFilesParams,
@@ -8,18 +8,18 @@ import { StateCreator } from 'zustand/vanilla';
 
 import { localFileService } from '@/services/electron/localFileService';
 import { ChatStore } from '@/store/chat/store';
+import {
+  LocalFileListState,
+  LocalFileSearchState,
+  LocalReadFileState,
+  LocalReadFilesState,
+} from '@/tools/local-files/type';
 
 export interface LocalFileAction {
-  listLocalFiles: (id: string, params: LocalFileListParams) => Promise<boolean>;
+  listLocalFiles: (id: string, params: ListLocalFileParams) => Promise<boolean>;
   reSearchLocalFiles: (id: string, params: LocalSearchFilesParams) => Promise<boolean>;
-  readLocalFile: (
-    id: string,
-    params: LocalReadFileParams,
-  ) => Promise<{ content: string; error?: string; success: boolean } | undefined>;
-  readLocalFiles: (
-    id: string,
-    params: LocalReadFilesParams,
-  ) => Promise<{ content: string; error?: string; success: boolean }[] | undefined>;
+  readLocalFile: (id: string, params: LocalReadFileParams) => Promise<boolean>;
+  readLocalFiles: (id: string, params: LocalReadFilesParams) => Promise<boolean>;
   searchLocalFiles: (id: string, params: LocalSearchFilesParams) => Promise<boolean>;
   toggleLocalFileLoading: (id: string, loading: boolean) => void;
 }
@@ -34,7 +34,8 @@ export const localFileSlice: StateCreator<
     get().toggleLocalFileLoading(id, true);
     try {
       const data = await localFileService.listLocalFiles(params);
-      await get().updatePluginState(id, { files: data });
+      console.log(data);
+      await get().updatePluginState(id, { listResults: data } as LocalFileListState);
       await get().internal_updateMessageContent(id, JSON.stringify(data));
     } catch (error) {
       console.error('Error listing local files:', error);
@@ -59,12 +60,12 @@ export const localFileSlice: StateCreator<
 
   readLocalFile: async (id, params) => {
     get().toggleLocalFileLoading(id, true);
-    let result;
+
     try {
-      result = await localFileService.readLocalFile(params);
-      await get().updatePluginState(id, { fileContent: result });
-      // Potentially update message content if needed, depends on usage
-      // await get().internal_updateMessageContent(id, JSON.stringify(result));
+      const result = await localFileService.readLocalFile(params);
+
+      await get().updatePluginState(id, { fileContent: result } as LocalReadFileState);
+      await get().internal_updateMessageContent(id, JSON.stringify(result));
     } catch (error) {
       console.error('Error reading local file:', error);
       await get().internal_updateMessagePluginError(id, {
@@ -74,17 +75,16 @@ export const localFileSlice: StateCreator<
       });
     }
     get().toggleLocalFileLoading(id, false);
-    return result;
+    return true;
   },
 
   readLocalFiles: async (id, params) => {
     get().toggleLocalFileLoading(id, true);
-    let results;
+
     try {
-      results = await localFileService.readLocalFiles(params);
-      await get().updatePluginState(id, { filesContent: results });
-      // Potentially update message content if needed, depends on usage
-      // await get().internal_updateMessageContent(id, JSON.stringify(results));
+      const results = await localFileService.readLocalFiles(params);
+      await get().updatePluginState(id, { filesContent: results } as LocalReadFilesState);
+      await get().internal_updateMessageContent(id, JSON.stringify(results));
     } catch (error) {
       console.error('Error reading local files:', error);
       await get().internal_updateMessagePluginError(id, {
@@ -94,14 +94,15 @@ export const localFileSlice: StateCreator<
       });
     }
     get().toggleLocalFileLoading(id, false);
-    return results;
+
+    return true;
   },
 
   searchLocalFiles: async (id, params) => {
     get().toggleLocalFileLoading(id, true);
     try {
       const data = await localFileService.searchLocalFiles(params);
-      await get().updatePluginState(id, { searchResults: data });
+      await get().updatePluginState(id, { searchResults: data } as LocalFileSearchState);
       await get().internal_updateMessageContent(id, JSON.stringify(data));
     } catch (error) {
       console.error('Error searching local files:', error);

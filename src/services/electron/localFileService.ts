@@ -1,7 +1,8 @@
 import {
+  ListLocalFileParams,
   LocalFileItem,
-  LocalFileListParams,
   LocalReadFileParams,
+  LocalReadFileResult,
   LocalReadFilesParams,
   LocalSearchFilesParams,
   OpenLocalFileParams,
@@ -10,19 +11,15 @@ import {
 } from '@lobechat/electron-client-ipc';
 
 class LocalFileService {
-  async listLocalFiles(params: LocalFileListParams): Promise<LocalFileItem[]> {
+  async listLocalFiles(params: ListLocalFileParams): Promise<LocalFileItem[]> {
     return dispatch('listLocalFiles', params);
   }
 
-  async readLocalFile(
-    params: LocalReadFileParams,
-  ): Promise<{ content: string; error?: string; success: boolean }> {
+  async readLocalFile(params: LocalReadFileParams): Promise<LocalReadFileResult> {
     return dispatch('readLocalFile', params);
   }
 
-  async readLocalFiles(
-    params: LocalReadFilesParams,
-  ): Promise<{ content: string; error?: string; success: boolean }[]> {
+  async readLocalFiles(params: LocalReadFilesParams): Promise<LocalReadFileResult[]> {
     return dispatch('readLocalFiles', params);
   }
 
@@ -30,13 +27,11 @@ class LocalFileService {
     return dispatch('searchLocalFiles', params);
   }
 
-  async openLocalFile(params: OpenLocalFileParams): Promise<{ error?: string; success: boolean }> {
+  async openLocalFile(params: OpenLocalFileParams) {
     return dispatch('openLocalFile', params);
   }
 
-  async openLocalFolder(
-    params: OpenLocalFolderParams,
-  ): Promise<{ error?: string; success: boolean }> {
+  async openLocalFolder(params: OpenLocalFolderParams) {
     return dispatch('openLocalFolder', params);
   }
 }

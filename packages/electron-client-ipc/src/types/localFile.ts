@@ -1,15 +1,21 @@
 // Define types for local file operations
 export interface LocalFileItem {
-  // Optional for directories
-  createdTime?: Date;
+  contentType?: string;
+  createdTime: Date;
   isDirectory: boolean;
-  modifiedTime?: Date;
+  lastAccessTime: Date;
+  // Spotlight specific metadata
+  metadata?: {
+    [key: string]: any;
+  };
+  modifiedTime: Date;
   name: string;
   path: string;
-  size?: number;
+  size: number;
+  type: string;
 }
 
-export interface LocalFileListParams {
+export interface ListLocalFileParams {
   path: string;
 }
 
@@ -19,6 +25,16 @@ export interface LocalReadFileParams {
 
 export interface LocalReadFilesParams {
   paths: string[];
+}
+
+export interface LocalReadFileResult {
+  charCount: number;
+  content: string;
+  createdTime: Date;
+  fileType: string;
+  filename: string;
+  lineCount: number;
+  modifiedTime: Date;
 }
 
 export interface LocalSearchFilesParams {
